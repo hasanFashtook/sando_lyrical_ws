@@ -99,6 +99,11 @@ def generate_launch_description():
         default_value="",
         description="Skip YAWING state and go directly to TRAVELING (true/false). Empty string uses value from config file.",
     )
+    world_name_arg = DeclareLaunchArgument(
+        "world_name",
+        default_value="easy_forest",
+        description="Name of the Gazebo world (used for /world/<world_name>/set_pose)",
+    )
 
     # Need to be the same as simulartor.launch.py
     map_size_x_arg = DeclareLaunchArgument("map_size_x", default_value="20.0")
@@ -116,6 +121,7 @@ def generate_launch_description():
         z = LaunchConfiguration("z").perform(context)
         yaw = LaunchConfiguration("yaw").perform(context)
         namespace = LaunchConfiguration("namespace").perform(context)
+        world_name = LaunchConfiguration("world_name").perform(context)
         use_obstacle_tracker = convert_str_to_bool(
             LaunchConfiguration("use_obstacle_tracker").perform(context)
         )
@@ -228,6 +234,9 @@ def generate_launch_description():
             arguments=["--ros-args", "--log-level", "error"],
         )
 
+        is_gazebo = (parameters.get("sim_env") == "gazebo")
+        parameters["use_sim_time"] = is_gazebo
+
         # Robot state publisher node
         robot_state_publisher_node = Node(
             package="robot_state_publisher",
@@ -250,40 +259,35 @@ def generate_launch_description():
                         ),
                         value_type=str,
                     ),
-                    "use_sim_time": False,
+                    "use_sim_time": is_gazebo,
                     "frame_prefix": namespace + "/",
                 }
             ],
             arguments=["--ros-args", "--log-level", "error"],
         )
 
-        # Spawn entity node for Gazebo
-        # Get the start position and yaw from the parameters
+        # Spawn entity node for Gazebo Harmonic
         yaw = str(radians(float(yaw)))
         spawn_entity_node = Node(
-            package="gazebo_ros",
-            executable="spawn_entity.py",
+            package="ros_gz_sim",
+            executable="create",
             name="spawn_entity",
             namespace=namespace,
-            parameters=[
-                {
-                    "use_sim_time": False,
-                }
-            ],
             arguments=[
                 "-topic",
                 "robot_description",
-                "-entity",
+                "-name",
                 namespace,
                 "-x",
-                x,
+                str(x),
                 "-y",
-                y,
+                str(y),
                 "-z",
-                z,
+                str(z),
                 "-Y",
-                yaw,
+                str(yaw),
             ],
+            output="screen",
         )
 
         # Create an obstacle tracker node
@@ -342,6 +346,8 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[
                 {
+                    "use_sim_time": is_gazebo,
+                    "gazebo_set_entity_srv": f"/world/{world_name}/set_pose",
                     "start_pos": [float(x), float(y), float(z)],
                     "start_yaw": float(yaw),
                     "send_state_to_gazebo": parameters["sim_env"] == "gazebo",
@@ -427,6 +433,7 @@ def generate_launch_description():
             hover_avoidance_enabled_arg,
             ignore_other_trajs_arg,
             skip_initial_yawing_arg,
+            world_name_arg,
             OpaqueFunction(function=launch_setup),
         ]
     )

@@ -16,11 +16,59 @@
 
     <!-- Note: added $(arg namespace)_ to the name to avoid having multiple sensors with the same name when using multiple agents -->
 
-    <!-- Livox -->
-    <xacro:include filename="$(find ros2_livox_simulation)/urdf/mid360.xacro" />
-    <xacro:mid360 name="$(arg namespace)_livox" namespace="$(arg namespace)" parent="base_link" topic="mid360" >
+    <!-- Livox Mid-360 LiDAR link & joint -->
+    <link name="$(arg namespace)_livox">
+      <inertial>
+        <mass value="0.1" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <cylinder radius="0.04" length="0.06"/>
+        </geometry>
+      </visual>
+    </link>
+
+    <joint name="$(arg namespace)_livox_joint" type="fixed">
       <origin xyz="0 0 0.2" rpy="0 0.3 0"/>
-    </xacro:mid360>
+      <parent link="base_link"/>
+      <child link="$(arg namespace)_livox"/>
+    </joint>
+
+    <!-- Native Gz Sim GPU LiDAR (Mid-360 equivalent) -->
+    <gazebo reference="$(arg namespace)_livox">
+      <sensor name="gpu_lidar" type="gpu_lidar">
+        <pose relative_to="$(arg namespace)_livox">0 0 0 0 0 0</pose>
+        <topic>/$(arg namespace)/lidar</topic>
+        <update_rate>10</update_rate>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <gz_frame_id>$(arg namespace)/$(arg namespace)_livox</gz_frame_id>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159265359</min_angle>
+              <max_angle>3.14159265359</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>32</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.261799</min_angle>
+              <max_angle>0.785398</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.1</min>
+            <max>40.0</max>
+            <resolution>0.01</resolution>
+          </range>
+        </lidar>
+      </sensor>
+    </gazebo>
 
     <!-- Forward facing camera (d435)-->
     <xacro:include filename="$(find sando)/urdf/_d435.urdf.xacro" />

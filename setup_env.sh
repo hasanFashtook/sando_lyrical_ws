@@ -16,6 +16,6 @@ if [ -f "$WS_INSTALL" ]; then
 fi
 
 export GUROBI_HOME="/opt/gurobi1103/linux64"
-export PATH="${GUROBI_HOME}/bin:${PATH}"
+export PATH="${PATH}:${GUROBI_HOME}/bin"
 export LD_LIBRARY_PATH="${GUROBI_HOME}/lib:${LD_LIBRARY_PATH}"
 export GRB_LICENSE_FILE="${HOME}/gurobi.lic"

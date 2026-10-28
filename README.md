@@ -157,6 +157,27 @@ python3 src/sando/scripts/run_sim.py --mode rviz-only -s install/setup.bash --go
 ```
 *Features*: Drone navigates through a dense field of dynamic trefoil obstacles to the target goal `(50, 0, 2)`.
 
+### Gazebo Harmonic Simulation (Modernized for ROS 2 Lyrical)
+```bash
+# Single-agent simulation in easy_forest (headless Gazebo + RViz2)
+python3 src/sando/scripts/run_sim.py --mode gazebo --env easy_forest -s install/setup.bash
+
+# Single-agent simulation with Gazebo Harmonic GUI enabled
+python3 src/sando/scripts/run_sim.py --mode gazebo --env easy_forest --gazebo-gui -s install/setup.bash
+
+# Single-agent simulation in ring_forest
+python3 src/sando/scripts/run_sim.py --mode gazebo --env ring_forest -s install/setup.bash
+
+# Gazebo Harmonic with dynamic obstacle avoidance
+python3 src/sando/scripts/run_sim.py --mode gazebo-dynamic --env easy_forest -s install/setup.bash
+```
+*Features*:
+- Full native integration with **Gazebo Harmonic (Gz Sim)** on ROS 2 Lyrical without legacy `gazebo_ros` or `gazebo_msgs`.
+- **GPU LiDAR Sensing**: Simulated Livox mid360 point cloud bridged to `/NX01/mid360_PointCloud2` using `ros_gz_bridge`.
+- **Real-time Occupancy Voxel Mapping**: `global_mapper_ros` ingests the LiDAR stream and maintains 3D voxel occupancy grids.
+- **Kinematic Pose Teleportation**: Modern `ros_gz_interfaces/srv/SetEntityPose` service updates the UAV model pose in Gazebo at `/world/<world_name>/set_pose`.
+- **SDF Worlds**: Includes native Gazebo Harmonic worlds (`empty.sdf`, `easy_forest.sdf`, `medium_forest.sdf`, `hard_forest.sdf`, `ring_forest.sdf`, etc.).
+
 ### Standalone Trajectory & Safe Flight Corridor Benchmark
 ```bash
 cd ~/code/sando_lyrical_ws
@@ -164,4 +185,46 @@ source setup_env.sh
 ros2 run sando temporal_layered_corridor_test_node
 ```
 *Expected*: Layered corridor generation and Gurobi MIQP optimization complete with `worst union violation <= 0` (feasible safe flight).
+
+---
+
+## 7. Simulation Termination & Cleanup (إيقاف المحاكاة بالكامل)
+
+To cleanly and completely terminate all background simulation processes (Gazebo Harmonic, `ros_gz_bridge`, RViz2, SANDO nodes, and tmux sessions), you can use any of the following methods:
+
+### Method 1: Using the helper script (Recommended)
+```bash
+cd ~/code/sando_lyrical_ws
+./stop_sim.sh
+```
+
+### Method 2: Using the python launcher `--kill` flag
+```bash
+cd ~/code/sando_lyrical_ws
+python3 src/sando/scripts/run_sim.py --kill
+```
+
+### Method 3: Direct terminal one-liner commands
+```bash
+# 1. Kill the active tmux session
+tmux kill-session -t sando_sim
+
+# 2. Terminate Gazebo Harmonic and ROS-Gz Bridge processes
+killall -9 ruby 2>/dev/null
+pkill -9 -f "gz sim" 2>/dev/null
+pkill -9 -f "ros_gz_bridge" 2>/dev/null
+pkill -9 -f "parameter_bridge" 2>/dev/null
+
+# 3. Terminate ROS 2 nodes and RViz2
+pkill -9 -f "ros2 launch" 2>/dev/null
+pkill -9 -x rviz2 2>/dev/null
+pkill -9 -x fake_sim 2>/dev/null
+pkill -9 -x sando 2>/dev/null
+pkill -9 -x dynamic_forest_node 2>/dev/null
+pkill -9 -f "global_mapper" 2>/dev/null
+pkill -9 -f "obstacle_tracker_node" 2>/dev/null
+pkill -9 -f "goal_relay" 2>/dev/null
+```
+
+
 

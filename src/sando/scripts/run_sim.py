@@ -446,7 +446,7 @@ def generate_gazebo_dynamic_yaml(
     send_goal: bool = True,
     publish_trajs: bool = True,
     trajs_topic: str = "/trajs",
-    depth_topic: str = "d435/depth/color/points",
+    depth_topic: str = "mid360_PointCloud2",
     data_file: str = None,
     use_benchmark: bool = False,
     global_planner: str = "astar_heat",
@@ -456,8 +456,7 @@ def generate_gazebo_dynamic_yaml(
     Static obstacles come from the Gazebo world file (pointcloud via ACL mapper).
 
     When ground truth is disabled (publish_trajs=False):
-      - A WorldPlugin spawns + moves ALL obstacles in Gazebo from a single plugin
-        (no per-model plugins, no RSP nodes, no spawn_entity overhead).
+      - dynamic obstacles are spawned and moved in Gazebo.
       - dynamic_forest_node still runs for RViz markers and TF.
 
     When ground truth is enabled (publish_trajs=True):
@@ -484,7 +483,7 @@ def generate_gazebo_dynamic_yaml(
     obstacles_json_str = _json.dumps(obstacles)
 
     if not publish_trajs:
-        # Write JSON for the WorldPlugin to read
+        # Write JSON for obstacles
         json_path = "/tmp/sando_obstacles.json"
         with open(json_path, "w") as f:
             f.write(obstacles_json_str)
@@ -492,16 +491,16 @@ def generate_gazebo_dynamic_yaml(
         # Generate temp world file with the WorldPlugin injected
         # Resolve base world path from the install directory
         env_to_world = {
-            "easy_forest": "easy_forest.world",
-            "medium_forest": "medium_forest.world",
-            "hard_forest": "hard_forest.world",
-            "empty": "empty.world",
-            "empty_wo_ground": "empty_wo_ground.world",
+            "easy_forest": "easy_forest.sdf",
+            "medium_forest": "medium_forest.sdf",
+            "hard_forest": "hard_forest.sdf",
+            "empty": "empty.sdf",
+            "empty_wo_ground": "empty_wo_ground.sdf",
         }
-        world_file = env_to_world.get(env, f"{env}.world")
+        world_file = env_to_world.get(env, f"{env}.sdf")
         install_dir = setup_bash.resolve().parent
         base_world = install_dir / "sando" / "share" / "sando" / "worlds" / world_file
-        temp_world = "/tmp/sando_world.world"
+        temp_world = "/tmp/sando_world.sdf"
         _inject_world_plugin(str(base_world), json_path, temp_world)
 
         panes = [
@@ -564,6 +563,7 @@ def generate_gazebo_dynamic_yaml(
                     f"publish_tf:=true "
                     f"publish_trajs:=true "
                     f"trajs_topic:={trajs_topic} "
+                    f"use_sim_time:=true "
                     f"launch_forest_node:=true",
                 ]
             },
@@ -576,7 +576,7 @@ def generate_gazebo_dynamic_yaml(
             {
                 "shell_command": [
                     "sleep 10",
-                    f"ros2 launch global_mapper_ros global_mapper_node.launch.py quad:=NX01 depth_pointcloud_topic:={depth_topic}",
+                    f"ros2 launch global_mapper_ros global_mapper_node.launch.py quad:=NX01 use_gazebo:=true param_file:=sim_uav.yaml",
                 ]
             },
             # Onboard agent NX01
@@ -585,6 +585,7 @@ def generate_gazebo_dynamic_yaml(
                     "sleep 10",
                     f"ros2 launch sando onboard_sando.launch.py namespace:=NX01 "
                     f"x:={start_x} y:={start_y} z:={start_z} yaw:={start_yaw} "
+                    f"sim_env:=gazebo world_name:={env} publish_odom:=true odom_topic:=odom "
                     + ("use_benchmark:=true " if use_benchmark else "")
                     + (f"data_file:={data_file} " if data_file else "")
                     + (f"global_planner:={global_planner} " if use_benchmark else ""),
@@ -901,15 +902,11 @@ def generate_gazebo_yaml(
 
     # ACL mapper (optional)
     if use_mapper:
-        static_envs = {"easy_forest", "medium_forest", "hard_forest"}
-        param_file = (
-            "static_global_mapper.yaml" if env in static_envs else "global_mapper.yaml"
-        )
         panes.append(
             {
                 "shell_command": [
                     "sleep 10",
-                    f"ros2 launch global_mapper_ros global_mapper_node.launch.py quad:=NX01 depth_pointcloud_topic:={depth_topic} param_file:={param_file}",
+                    f"ros2 launch global_mapper_ros global_mapper_node.launch.py quad:=NX01 use_gazebo:=true param_file:=sim_uav.yaml",
                 ]
             }
         )
@@ -919,7 +916,7 @@ def generate_gazebo_yaml(
         {
             "shell_command": [
                 "sleep 10",
-                f"ros2 launch sando onboard_sando.launch.py namespace:=NX01 x:={start_x} y:={start_y} z:={start_z} yaw:={start_yaw} "
+                f"ros2 launch sando onboard_sando.launch.py namespace:=NX01 x:={start_x} y:={start_y} z:={start_z} yaw:={start_yaw} sim_env:=gazebo world_name:={env} publish_odom:=true odom_topic:=odom "
                 + (
                     f"environment_assumption:={environment_assumption} "
                     if environment_assumption
@@ -1034,7 +1031,7 @@ RVIZ_RECORD_TOPICS = [
 def kill_all_sando_processes():
     """Kill all sando-related processes for a clean slate between runs.
 
-    Mirrors the cleanup logic from run_benchmark.py.
+    Mirrors the cleanup logic from run_benchmark.py and handles Gazebo Harmonic.
     """
     subprocess.run(
         ["tmux", "kill-session", "-t", "sando_sim"],
@@ -1042,18 +1039,37 @@ def kill_all_sando_processes():
         stdout=subprocess.DEVNULL,
     )
 
-    for process_name in [
+    # Exact process names
+    for proc_name in [
         "rviz2",
         "fake_sim",
         "dynamic_forest_node",
-        "sando_node",
-        "goal_sender",
+        "sando",
         "gzserver",
         "gzclient",
-        "obstacle_tracker_node",
+        "ruby",
     ]:
         subprocess.run(
-            ["pkill", "-9", "-x", process_name],
+            ["pkill", "-9", "-x", proc_name],
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+        )
+
+    # Pattern matches (excluding run_sim.py)
+    for pattern in [
+        "parameter_bridge",
+        "ros_gz_bridge",
+        "global_mapper",
+        "obstacle_tracker_node",
+        "goal_relay.py",
+        "goal_sender",
+        "gz sim",
+        "ros2 launch sando",
+        "ros2 launch global_mapper",
+        "ros2 bag record",
+    ]:
+        subprocess.run(
+            ["pkill", "-9", "-f", pattern],
             stderr=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
         )
@@ -1061,13 +1077,6 @@ def kill_all_sando_processes():
     subprocess.run(
         ["pkill", "-9", "tmuxp"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL
     )
-
-    for pattern in ["ros2 launch sando", "ros2 bag record"]:
-        subprocess.run(
-            ["pkill", "-9", "-f", pattern],
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-        )
 
     time.sleep(1)
 
@@ -1672,7 +1681,20 @@ def main():
         help="Which difficulties to run: easy, medium, hard, or all (default: all)",
     )
 
+    parser.add_argument(
+        "--kill",
+        "--stop",
+        action="store_true",
+        help="Kill and clean up all running simulation processes (tmux, Gazebo, ROS 2, RViz) and exit",
+    )
+
     args = parser.parse_args()
+
+    if args.kill:
+        print("[INFO] Terminating all SANDO and Gazebo simulation processes...")
+        kill_all_sando_processes()
+        print("[INFO] All simulation processes terminated cleanly.")
+        return
 
     # Find setup.bash path
     setup_bash = find_setup_bash(args.setup_bash)

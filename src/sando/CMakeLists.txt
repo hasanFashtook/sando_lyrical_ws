@@ -97,6 +97,9 @@ endif()
 add_definitions(${PCL_DEFINITIONS})
 
 # set up for gurobi
+if(NOT DEFINED ENV{GUROBI_HOME} OR "$ENV{GUROBI_HOME}" STREQUAL "")
+  set(ENV{GUROBI_HOME} "/opt/gurobi1103/linux64")
+endif()
 FILE(GLOB GurobiSOFiles $ENV{GUROBI_HOME}/lib/libgurobi*[0-9].so)
 set(GUROBI_LIBRARIES "$ENV{GUROBI_HOME}/lib/libgurobi_c++.a;${GurobiSOFiles}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
