@@ -1,0 +1,15 @@
+[submodule "src/acl-mapping"]
+	path = src/acl-mapping
+	url = https://github.com/hasanFashtook/acl-mapping.git
+	branch = ros2-lyrical
+[submodule "src/DecompROS2"]
+	path = src/DecompROS2
+	url = https://github.com/hasanFashtook/DecompROS2.git
+	branch = ros2-lyrical
+[submodule "src/uav_simulator"]
+	path = src/uav_simulator
+	url = https://github.com/hasanFashtook/uav_simulator.git
+	branch = ros2-lyrical
+[submodule "src/dynus_interfaces"]
+	path = src/dynus_interfaces
+	url = https://github.com/kotakondo/dynus_interfaces.git

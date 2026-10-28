@@ -1,0 +1,29 @@
+repositories:
+  # ==============================================================================
+  # SANDO ROS 2 Lyrical (Ubuntu 26.04) Workspace Dependencies
+  # Reuses audited branches proven in mighty_lyrical_ws
+  # ==============================================================================
+
+  # Mapping pipeline (synchronized sim clocks, SensorDataQoS, GCC 15 ported)
+  acl-mapping:
+    type: git
+    url: https://github.com/hasanFashtook/acl-mapping.git
+    version: ros2-lyrical
+
+  # Convex decomposition library (C++17/20 & GCC 15 ported)
+  DecompROS2:
+    type: git
+    url: https://github.com/hasanFashtook/DecompROS2.git
+    version: ros2-lyrical
+
+  # Simulation sensors & map generator utilities (GCC 15 ported)
+  uav_simulator:
+    type: git
+    url: https://github.com/hasanFashtook/uav_simulator.git
+    version: ros2-lyrical
+
+  # Custom ROS 2 message definitions
+  dynus_interfaces:
+    type: git
+    url: https://github.com/kotakondo/dynus_interfaces.git
+    version: 628a682c6a12b07fb2be7cffb4782ccdfe5b323d
